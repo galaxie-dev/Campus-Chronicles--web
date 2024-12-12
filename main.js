@@ -41,7 +41,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Display news in the main container
     function displayNews(news) {
         const container = document.getElementById('newsContainer');
-        container.innerHTML = news.map(article => `
+        container.innerHTML = news.map(article => createNewsCard(article)).join('');
+    }
+
+    function createNewsCard(article) {
+        const formattedDate = new Date(article.createdAt).toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        return `
             <article class="news-card" data-aos="fade-up">
                 <div class="news-image">
                     <img src="${article.imageUrl}" alt="${article.title}">
@@ -49,14 +61,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="news-content">
                     <span class="category">${article.category}</span>
                     <h3>${article.title}</h3>
-                    <p>${article.content.substring(0, 150)}...</p>
                     <div class="news-meta">
-                        <span class="date">${new Date(article.createdAt).toLocaleDateString()}</span>
-                        <button class="read-more" onclick="showFullArticle('${article._id}')">Read More</button>
+                        <span><i class="far fa-calendar"></i> ${formattedDate}</span>
                     </div>
+                    <p>${article.content.substring(0, 150)}...</p>
+                    <a href="/article.html?id=${article._id}" class="read-more">Read More</a>
                 </div>
             </article>
-        `).join('');
+        `;
     }
 
     // Update slider content
