@@ -1,5 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
@@ -11,74 +11,117 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/campus-chronicles', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
+// PostgreSQL Connection
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
 
-// News Schema
-const newsSchema = new mongoose.Schema({
-    title: String,
-    content: String,
-    category: String,
-    imageUrl: String,
-    createdAt: { type: Date, default: Date.now },
-    keywords: [String]
-});
+// Initialize Database Tables
+async function initializeDatabase() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS news (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                category VARCHAR(50) NOT NULL,
+                media_url TEXT NOT NULL,
+                media_type VARCHAR(10) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                keywords TEXT[]
+            );
 
-const News = mongoose.model('News', newsSchema);
+            CREATE TABLE IF NOT EXISTS admins (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL
+            );
+        `);
+        console.log('Database initialized successfully');
+    } catch (error) {
+        console.error('Error initializing database:', error);
+    }
+}
 
-// Admin Schema
-const adminSchema = new mongoose.Schema({
-    username: String,
-    password: String
-});
-
-const Admin = mongoose.model('Admin', adminSchema);
+initializeDatabase();
 
 // Routes
 app.get('/api/news', async (req, res) => {
-    const { sort, category, keyword } = req.query;
-    let query = {};
-    
-    if (category) {
-        query.category = category;
-    }
-    
-    if (keyword) {
-        query.keywords = { $in: [keyword] };
-    }
-    
-    let sortOption = {};
-    if (sort === 'newest') {
-        sortOption = { createdAt: -1 };
-    } else if (sort === 'oldest') {
-        sortOption = { createdAt: 1 };
-    }
-    
     try {
-        const news = await News.find(query).sort(sortOption);
-        res.json(news);
-    } catch (err) {
-        res.status(500).json({ message: err.message });
+        const { sort, category, keyword } = req.query;
+        let query = `
+            SELECT * FROM news
+            WHERE 1=1
+        `;
+        const values = [];
+
+        if (category) {
+            values.push(category);
+            query += ` AND category = $${values.length}`;
+        }
+
+        if (keyword) {
+            values.push(keyword);
+            query += ` AND $${values.length} = ANY(keywords)`;
+        }
+
+        if (sort === 'oldest') {
+            query += ' ORDER BY created_at ASC';
+        } else {
+            query += ' ORDER BY created_at DESC';
+        }
+
+        const result = await pool.query(query, values);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching news:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
 app.post('/api/news', async (req, res) => {
-    const news = new News({
-        title: req.body.title,
-        content: req.body.content,
-        category: req.body.category,
-        imageUrl: req.body.imageUrl,
-        keywords: req.body.keywords
-    });
-
     try {
-        const newNews = await news.save();
-        res.status(201).json(newNews);
-    } catch (err) {
-        res.status(400).json({ message: err.message });
+        const { title, content, category, mediaUrl, mediaType, keywords } = req.body;
+        const result = await pool.query(
+            `INSERT INTO news (title, content, category, media_url, media_type, keywords)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING *`,
+            [title, content, category, mediaUrl, mediaType, keywords]
+        );
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error creating news:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.get('/api/news/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM news WHERE id = $1', [id]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Article not found' });
+        }
+        
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error fetching article:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.delete('/api/news/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query('DELETE FROM news WHERE id = $1', [id]);
+        res.json({ message: 'Article deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting article:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
