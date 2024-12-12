@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -57,12 +57,23 @@
             </div>
         </section>
 
-
         <!-- news posting section -->
         <section id="newsContainer" class="news-container">
             <!-- News articles will be dynamically inserted here -->
         </section>
     </main>
+
+    <div class="theme-switcher">
+        <button class="theme-btn light" data-theme="light">
+            <i class="fas fa-sun"></i>
+        </button>
+        <button class="theme-btn dark" data-theme="dark">
+            <i class="fas fa-moon"></i>
+        </button>
+        <button class="theme-btn cyberpunk" data-theme="cyberpunk">
+            <i class="fas fa-robot"></i>
+        </button>
+    </div>
 
     <footer class="footer">
         <div class="footer-content">
@@ -94,5 +105,29 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.10.2/cdn.js"></script>
     <script src="js/main.js"></script>
+    <script>
+        // Theme Switcher
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const theme = btn.dataset.theme;
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
+            });
+        });
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        // Mobile Menu Toggle
+        const mobileMenu = document.querySelector('.mobile-menu');
+        const navLinks = document.querySelector('.nav-links');
+
+        mobileMenu.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            mobileMenu.querySelector('i').classList.toggle('fa-bars');
+            mobileMenu.querySelector('i').classList.toggle('fa-times');
+        });
+    </script>
 </body>
 </html>
